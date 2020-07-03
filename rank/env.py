@@ -1,88 +1,58 @@
 import numpy as np
-import random
-import math
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class ENV:
     def __init__(self, num_recommend, num_category):
+
         self.num_recommend = num_recommend
         self.num_category = num_category
-        self.user_personality = random.random() # np.random.dirichlet(np.ones(self.num_category), size=1)[0]
-        self.user_threshold = random.random()
+        self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
+        print(f"USER PERSONALITY: {self.user_personality}")
+        self.user_threshold = 0.5  # random.random()
         self.done = 0
         self.satisfy = 1
         self.views = 0
         self.disappoint_factor = 0.9
-        self.state = np.array([1]) # np.reshape(np.array([1, 1]), (1, self.num_category))
+        self.state = [0.13, 0.13, 0.14, 0.14, 0.13, 0.13, 0.20]  # self.init_state
+        self.priv_state = None
+        self.action = None
+        self.reward = None
 
     def reset(self):
         self.done = 0
         self.satisfy = 1
-        self.views = 0
-        # self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
-        # self.user_threshold = random.random()
-        return self.state
 
-    def step(self, action):
-        self.state, reward = self.get_state_reward(action)
-        # reward = self.get_reward(self.state[0])
-        # if reward < self.user_threshold * self.num_recommend:
-        #     self.satisfy *= self.disappoint_factor
-        # else:
-        #     self.satisfy = min(1, self.satisfy * (2 - self.disappoint_factor))
-        # if self.satisfy < self.user_threshold:
-        #     self.done = 1
+        return np.reshape(np.array(self.state), (1, self.num_category))  # np.array(self.state)
 
-        return reward, self.state, self.done
+    def step(self, action, debug=False):
+        self.action = action[0]
+        self.priv_state = self.state
+        self.state = [1 - abs(a - p) for a, p in zip(self.action, self.user_personality)]
+        self.satisfy = sum(self.state)
+        self.reward = self.get_reward(self.state)
+        if debug:
+            self.print_env()
 
-    def get_state_reward(self, action):
-        # STATE: (satisfy == dwell_time, view)
-        reward = 0
-        state = np.array([])
-        # action = self.softmax(action[0])
-        num_recommend = round(self.num_recommend * self.satisfy)
-        seed = np.random.choice(a=list(range(self.num_category)), size=num_recommend, p=action)
+        return self.reward, np.reshape(self.state, (1, self.num_category)), self.done
 
-        for category in range(self.num_category):
-            state = np.append(state, np.count_nonzero(seed == category))
-        self.views = sum([math.ceil(min(s, p)) for s, p in zip(state, self.user_personality * num_recommend)])
-
-        if self.views < self.user_threshold * self.num_recommend:
-            self.satisfy *= self.disappoint_factor
-            # reward = -self.views
-        else:
-            self.satisfy = min(1, self.satisfy * (2 - self.disappoint_factor))
-            reward = self.views
-        if self.satisfy < self.user_threshold:
-            self.done = 1
-            reward = -1000
-
-
-        self.views /= self.num_recommend
-        self.state = np.array([self.satisfy])
-
-        return np.reshape(self.state, (1, self.num_category)), reward
-
-
-        # state = np.array([])
-        # action = self.softmax(action[0])
-        # num_recommend = round(self.num_recommend * self.satisfy)
-        # seed = np.random.choice(a=list(range(self.num_category)), size=num_recommend, p=action)
-        #
-        # for category in range(self.num_category):
-        #     state = np.append(state, np.count_nonzero(seed == category))
-        # # state = [np.round(a * p + 0.3) for a, p in zip(self.user_personality, state)]
-        # state = [math.ceil(min(s, p)) for s, p in zip(state, self.user_personality * num_recommend)]
-        # reward = sum(state) * self.satisfy
-        #
-        # return np.reshape(state, (1, self.num_category)), reward
+    def print_env(self):
+        print(f'--------------------------------------------------------------------------')
+        print(f'USER PERSONALITY : {self.user_personality}')
+        print(f'USER THRESHOLD   : {self.user_threshold}')
+        print(f'USER SATISFY     : {self.satisfy}')
+        print(f'CURR STATE       : {self.priv_state}')
+        print(f'NEXT STATE       : {self.state}')
+        print(f'ACTION           : {self.action}')
+        print(f'REWARD           : {self.reward}')
+        print(f'DONE             : {self.done}')
+        print(f'--------------------------------------------------------------------------')
 
     def get_reward(self, state):
-        print(state)
-        print(self.num_recommend * self.satisfy)
-        return sum(state) # - round(self.num_recommend * self.satisfy)
+        return sum(state) - self.num_category
 
-    def softmax(self, x):
-        """Compute softmax values for each sets of scores in x."""
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum(axis=0)
+    def sample(self):
+        return np.array(np.random.dirichlet(np.ones(self.num_category), size=1))

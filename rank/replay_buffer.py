@@ -45,7 +45,6 @@ class ReplayBuffer(object):
             rewards.append([reward])
             next_states.append(next_state.tolist()[0])
             dones.append([done])
-
         return torch.tensor(states, dtype=torch.float), \
                torch.tensor(actions, dtype=torch.float), \
                torch.tensor(rewards, dtype=torch.float), \

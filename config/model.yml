@@ -2,24 +2,29 @@ version: 0.1
 
 model:
   trend: &default_layer
-    input_size: 1
+    input_size: 7
     output_size: 64
     hidden_act: relu
     layer_norm_eps: !!float 1e-12
   long_term_personality:
     <<: *default_layer
-    input_size: 1
+    input_size: 7
   short_term_personality:
     <<: *default_layer
-    input_size: 1
+    input_size: 7
   action:
     <<: *default_layer
-    input_size: 1
+    input_size: 7
   actor_head:
     <<: *default_layer
     input_size: 64
-    output_size: 1
+    output_size: 7
   critic_head:
     <<: *default_layer
-    input_size: 128
+    input_size: 32
     output_size: 1
+  critic_hidden:
+    <<: *default_layer
+    input_size: 128
+    output_size: 32
+
