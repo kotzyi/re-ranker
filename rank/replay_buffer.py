@@ -1,15 +1,6 @@
 import torch
 import random
 from collections import namedtuple
-import numpy as np
-
-# Transition - a named tuple representing a single transition in our environment.
-# It essentially maps (state, action) pairs to their (next_state, reward) result,
-# with the state being the screen difference image as described later on.
-# Card types - in the environment, there are seven types of card; demography, entity, feature, ucc, ncf, din, rl
-# Action - a ratio of card types; ex. (0.1, 0.3, 0.1, 0.2, 0.1, 0.1, 0.1)
-# State - recommended contents to a user over a single batch time. (CARD_TYPE, CATEGOR)
-# Reward - FEEDBACK_TYPE(1 or -1) X DWELL_TIME X RANK(?) X EXPOSED
 
 
 Transition = namedtuple('Transition',
