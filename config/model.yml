@@ -2,8 +2,8 @@ version: 0.1
 
 
 ddpg: &DEFAULT
-  state_dim: 7
-  action_dim: 7
+  state_dim: 30
+  action_dim: 30
   max_action: 1.0
   discount: 0.99
   tau: 0.005

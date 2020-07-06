@@ -3,6 +3,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from apex import amp
+
 
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
 # Paper: https://arxiv.org/abs/1802.09477
@@ -17,8 +19,6 @@ class TD3Actor(nn.Module):
         self.fc3 = nn.Linear(model.fc2, model.fc3)
         self.fc_mu = nn.Linear(model.fc3, action_dim)
         self.LayerNorm = nn.LayerNorm(action_dim, eps=model.layer_norm)
-        self.softmax = nn.Softmax(dim=1)
-
         self.max_action = max_action
 
     def forward(self, x):
@@ -73,7 +73,6 @@ class TD3(object):
         self.noise_clip = conf.noise_clip
         self.policy_freq = conf.policy_freq
         self.device = conf.device
-
         self.total_it = 0
 
         self.actor = TD3Actor(conf.state_dim, conf.action_dim, conf.max_action, conf.actor).to(self.device)
@@ -84,16 +83,21 @@ class TD3(object):
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=conf.critic_lr)
 
+        if conf.fp16:
+            self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
+                                                              opt_level=conf.fp16_opt_level)
+            self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
+                                                              opt_level=conf.fp16_opt_level)
+
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         return np.array([self.actor(state).cpu().data.numpy().flatten()])
 
-    def train(self, replay_buffer, batch_size=128):
+    def train(self, args, replay_buffer):
         self.total_it += 1
 
         # Sample replay buffer
-        #state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
-        state, action, reward, next_state, not_done = replay_buffer.sample(batch_size)
+        state, action, reward, next_state, not_done = replay_buffer.sample(args.batch_size, self.device)
         with torch.no_grad():
             # Select action according to policy and add clipped noise
             noise = (
@@ -116,8 +120,17 @@ class TD3(object):
         critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
 
         # Optimize the critic
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
+        self.critic.zero_grad()
+        if args.fp16:
+            with amp.scale_loss(critic_loss, self.critic_optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            critic_loss.backward()
+
+        if args.fp16:
+            torch.nn.utils.clip_grad_norm_(amp.master_params(self.critic_optimizer), args.max_grad_norm)
+        else:
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), args.max_grad_norm)
         self.critic_optimizer.step()
 
         # Delayed policy updates
@@ -127,8 +140,16 @@ class TD3(object):
             actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
             # Optimize the actor
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
+            self.actor.zero_grad()
+            if args.fp16:
+                with amp.scale_loss(actor_loss, self.actor_optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                actor_loss.backward()
+            if args.fp16:
+                torch.nn.utils.clip_grad_norm_(amp.master_params(self.actor_optimizer), args.max_grad_norm)
+            else:
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), args.max_grad_norm)
             self.actor_optimizer.step()
 
             # Update the frozen target models

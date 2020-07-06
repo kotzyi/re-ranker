@@ -18,8 +18,6 @@ class DDPGActor(nn.Module):
         self.fc3 = nn.Linear(model.fc2, model.fc3)
         self.fc_mu = nn.Linear(model.fc3, action_dim)
         self.LayerNorm = nn.LayerNorm(action_dim, eps=model.layer_norm)
-        self.softmax = nn.Softmax(dim=1)
-
         self.max_action = max_action
 
     def forward(self, x):
@@ -60,13 +58,8 @@ class DDPG(object):
         if conf.fp16:
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
-            self.actor_target, self.actor_optimizer = amp.initialize(self.actor_target, self.actor_optimizer,
-                                                              opt_level=conf.fp16_opt_level)
-
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
                                                               opt_level=conf.fp16_opt_level)
-            self.critic_target, self.critic_optimizer = amp.initialize(self.critic_target, self.critic_optimizer,
-                                                                     opt_level=conf.fp16_opt_level)
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -74,7 +67,7 @@ class DDPG(object):
 
     def train(self, args, replay_buffer):
         # Sample replay buffer
-        state, action, reward, next_state, not_done = replay_buffer.sample(args.batch_size)
+        state, action, reward, next_state, not_done = replay_buffer.sample(args.batch_size, self.device)
 
         # Compute the target Q value
         target_Q = self.critic_target(next_state, self.actor_target(next_state))
@@ -86,27 +79,18 @@ class DDPG(object):
         # Compute critic loss
         critic_loss = F.mse_loss(current_Q, target_Q)
 
+        # Optimize the critic
         self.critic.zero_grad()
-
         if args.fp16:
             with amp.scale_loss(critic_loss, self.critic_optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
             critic_loss.backward()
-
         if args.fp16:
             torch.nn.utils.clip_grad_norm_(amp.master_params(self.critic_optimizer), args.max_grad_norm)
         else:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), args.max_grad_norm)
-
         self.critic_optimizer.step()
-
-
-
-        # Optimize the critic
-        # self.critic_optimizer.zero_grad()
-        # critic_loss.backward()
-        # self.critic_optimizer.step()
 
         # Compute actor loss
         actor_loss = -self.critic(state, self.actor(state)).mean()
@@ -118,16 +102,11 @@ class DDPG(object):
                 scaled_loss.backward()
         else:
             actor_loss.backward()
-
         if args.fp16:
             torch.nn.utils.clip_grad_norm_(amp.master_params(self.actor_optimizer), args.max_grad_norm)
         else:
             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), args.max_grad_norm)
         self.actor_optimizer.step()
-
-        # self.actor_optimizer.zero_grad()
-        # actor_loss.backward()
-        # self.actor_optimizer.step()
 
         # Update the frozen target models
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):

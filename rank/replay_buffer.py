@@ -34,7 +34,7 @@ class ReplayBuffer(object):
         self.memory[self.position] = Transition(*args)
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, device):
         mini_batch = random.sample(self.memory, batch_size)
         states, actions, rewards, next_states, dones = [], [], [], [], []
 
@@ -45,11 +45,11 @@ class ReplayBuffer(object):
             rewards.append([reward])
             next_states.append(next_state.tolist()[0])
             dones.append([done])
-        return torch.tensor(states, dtype=torch.float), \
-               torch.tensor(actions, dtype=torch.float), \
-               torch.tensor(rewards, dtype=torch.float), \
-               torch.tensor(next_states, dtype=torch.float), \
-               torch.tensor(dones)
+        return torch.tensor(states, dtype=torch.float, device=device), \
+               torch.tensor(actions, dtype=torch.float, device=device), \
+               torch.tensor(rewards, dtype=torch.float, device=device), \
+               torch.tensor(next_states, dtype=torch.float, device=device), \
+               torch.tensor(dones, device=device)
 
     def __len__(self):
         return len(self.memory)

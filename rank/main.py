@@ -8,7 +8,10 @@ from rank.ddpg import DDPG
 from rank.config import DDPGConfig, TD3Config
 from rank.env import ENV
 from rank.replay_buffer import ReplayBuffer
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter, FileWriter
+except ImportError:
+    from tensorboardX import SummaryWriter, FileWriter
 
 
 BASE_MODEL_CLASSES = {
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def eval_policy(policy, eval_env, args):
     avg_reward = 0.
-    state, done = eval_env.reset(), False
+    state = eval_env.reset()
     for _ in range(args.eval_episodes):
         action = policy.select_action(np.array(state))
         reward, next_state, done = eval_env.step(action, debug=args.eval_debug)
@@ -37,7 +40,7 @@ def main():
     parser.add_argument("--env", default="CardType-v1", help="OpenAI gym environment name")
     parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
     parser.add_argument("--eval_freq", default=1000, type=int, help="How often (time steps) we evaluate")
-    parser.add_argument("--max_timesteps", default=1e6, type=int, help="Max time steps to run environment")
+    parser.add_argument("--max_timesteps", default=1e5, type=int, help="Max time steps to run environment")
     parser.add_argument("--expl_noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--batch_size", default=256, type=int, help="Batch size for both actor and critic")
     parser.add_argument("--save_model", action="store_true", help="Save model and optimizer parameters")
@@ -51,21 +54,21 @@ def main():
     parser.add_argument("--log_path", default="./logs")
     parser.add_argument("--no_cuda", action="store_true", help="Avoid using CUDA when available")
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
+    parser.add_argument("--max_grad_norm", default=1.0, type=float, help="Max gradient norm.")
     parser.add_argument("--fp16", action="store_true",
                         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
     parser.add_argument("--fp16_opt_level", type=str, default="O1",
                         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']. "
                              "See details at https://nvidia.github.io/apex/amp.html")
 
-
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%Y/%m/%d %H:%M:%S",
         level=logging.INFO,
     )
-
     args = parser.parse_args()
-    model_config, model = BASE_MODEL_CLASSES[args.policy]
+    model_config, policy = BASE_MODEL_CLASSES[args.policy]
+
     # Setup CUDA, GPU & distributed training
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -80,8 +83,7 @@ def main():
     model_config["fp16_opt_level"] = args.fp16_opt_level
     model_config["device"] = device
 
-
-    file_name = f"{args.policy}_{args.env}"
+    save_file_name = f"{args.policy}_{args.env}"
     logger.info(f"Policy: {args.policy}, Env: {args.env}")
 
     if args.save_model and not os.path.exists("./models"):
@@ -90,10 +92,10 @@ def main():
     env = ENV(num_recommend=10, num_category=model_config.state_dim)
 
     tb_writer = SummaryWriter(args.log_path)
-    policy = model(model_config)
+    policy = policy(model_config)
 
     if args.load_model != "":
-        policy_file = file_name if args.load_model == "default" else args.load_model
+        policy_file = save_file_name if args.load_model == "default" else args.load_model
         policy.load(f"./models/{policy_file}")
 
     replay_buffer = ReplayBuffer(args.buffer_size)
@@ -127,7 +129,7 @@ def main():
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
-            c_loss, a_loss = policy.train(replay_buffer, args.batch_size)
+            c_loss, a_loss = policy.train(args, replay_buffer)
 
         if t >= args.start_timesteps and episode_timesteps % args.print_interval == 0 and episode_timesteps != 0:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
@@ -147,7 +149,7 @@ def main():
         if (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, env, args))
             if args.save_model:
-                policy.save(f"{args.model_path}/{file_name}")
+                policy.save(f"{args.model_path}/{save_file_name}")
 
 
 if __name__ == "__main__":
