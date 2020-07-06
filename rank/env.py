@@ -11,13 +11,11 @@ class ENV:
         self.num_recommend = num_recommend
         self.num_category = num_category
         self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
-        print(f"USER PERSONALITY: {self.user_personality}")
-        self.user_threshold = 0.5  # random.random()
         self.done = 0
         self.satisfy = 1
         self.views = 0
         self.disappoint_factor = 0.9
-        self.state = [0.13, 0.13, 0.14, 0.14, 0.13, 0.13, 0.20]  # self.init_state
+        self.state = np.random.dirichlet(np.ones(self.num_category), size=1).tolist()
         self.priv_state = None
         self.action = None
         self.reward = None
@@ -40,19 +38,18 @@ class ENV:
         return self.reward, np.reshape(self.state, (1, self.num_category)), self.done
 
     def print_env(self):
-        print(f'--------------------------------------------------------------------------')
-        print(f'USER PERSONALITY : {self.user_personality}')
-        print(f'USER THRESHOLD   : {self.user_threshold}')
-        print(f'USER SATISFY     : {self.satisfy}')
-        print(f'CURR STATE       : {self.priv_state}')
-        print(f'NEXT STATE       : {self.state}')
-        print(f'ACTION           : {self.action}')
-        print(f'REWARD           : {self.reward}')
-        print(f'DONE             : {self.done}')
-        print(f'--------------------------------------------------------------------------')
+        logger.debug(f'--------------------------------------------------------------------------')
+        logger.debug(f'USER PERSONALITY : {self.user_personality}')
+        logger.debug(f'USER SATISFY     : {self.satisfy}')
+        logger.debug(f'CURR STATE       : {self.priv_state}')
+        logger.debug(f'NEXT STATE       : {self.state}')
+        logger.debug(f'ACTION           : {self.action}')
+        logger.debug(f'REWARD           : {self.reward}')
+        logger.debug(f'DONE             : {self.done}')
+        logger.debug(f'--------------------------------------------------------------------------')
 
     def get_reward(self, state):
-        return sum(state) - self.num_category
+        return (sum(state) - self.num_category) / 10
 
     def sample(self):
         return np.array(np.random.dirichlet(np.ones(self.num_category), size=1))

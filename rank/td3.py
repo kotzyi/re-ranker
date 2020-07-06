@@ -4,22 +4,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
 # Paper: https://arxiv.org/abs/1802.09477
 
 
 class TD3Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action=1):
+    def __init__(self, state_dim, action_dim, max_action, model):
         super(TD3Actor, self).__init__()
 
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 32)
-        self.fc_mu = nn.Linear(32, action_dim)
-        self.LayerNorm = nn.LayerNorm(action_dim, eps=1e-12)
+        self.fc1 = nn.Linear(state_dim, model.fc1)
+        self.fc2 = nn.Linear(model.fc1, model.fc2)
+        self.fc3 = nn.Linear(model.fc2, model.fc3)
+        self.fc_mu = nn.Linear(model.fc3, action_dim)
+        self.LayerNorm = nn.LayerNorm(action_dim, eps=model.layer_norm)
         self.softmax = nn.Softmax(dim=1)
 
         self.max_action = max_action
@@ -33,18 +30,18 @@ class TD3Actor(nn.Module):
 
 
 class TD3Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, model):
         super(TD3Critic, self).__init__()
 
         # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, 256)
-        self.l2 = nn.Linear(256, 128)
-        self.l3 = nn.Linear(128, 1)
+        self.l1 = nn.Linear(state_dim + action_dim, model.fc1)
+        self.l2 = nn.Linear(model.fc1, model.fc2)
+        self.l3 = nn.Linear(model.fc2, model.fc3)
 
         # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, 256)
-        self.l5 = nn.Linear(256, 128)
-        self.l6 = nn.Linear(128, 1)
+        self.l4 = nn.Linear(state_dim + action_dim, model.fc1)
+        self.l5 = nn.Linear(model.fc1, model.fc2)
+        self.l6 = nn.Linear(model.fc2, model.fc3)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
@@ -68,37 +65,27 @@ class TD3Critic(nn.Module):
 
 
 class TD3(object):
-    def __init__(
-            self,
-            state_dim,
-            action_dim,
-            max_action,
-            discount=0.99,
-            tau=0.005,
-            policy_noise=0.2,
-            noise_clip=0.5,
-            policy_freq=2
-    ):
-
-        self.actor = TD3Actor(state_dim, action_dim, max_action).to(device)
-        self.actor_target = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
-
-        self.critic = TD3Critic(state_dim, action_dim).to(device)
-        self.critic_target = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
-
-        self.max_action = max_action
-        self.discount = discount
-        self.tau = tau
-        self.policy_noise = policy_noise
-        self.noise_clip = noise_clip
-        self.policy_freq = policy_freq
+    def __init__(self, conf):
+        self.max_action = conf.max_action
+        self.discount = conf.discount
+        self.tau = conf.tau
+        self.policy_noise = conf.policy_noise
+        self.noise_clip = conf.noise_clip
+        self.policy_freq = conf.policy_freq
+        self.device = conf.device
 
         self.total_it = 0
 
+        self.actor = TD3Actor(conf.state_dim, conf.action_dim, conf.max_action, conf.actor).to(self.device)
+        self.actor_target = copy.deepcopy(self.actor)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=conf.actor_lr)
+
+        self.critic = TD3Critic(conf.state_dim, conf.action_dim, conf.critic).to(self.device)
+        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=conf.critic_lr)
+
     def select_action(self, state):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         return np.array([self.actor(state).cpu().data.numpy().flatten()])
 
     def train(self, replay_buffer, batch_size=128):

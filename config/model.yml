@@ -1,30 +1,27 @@
 version: 0.1
 
-model:
-  trend: &default_layer
-    input_size: 7
-    output_size: 64
-    hidden_act: relu
-    layer_norm_eps: !!float 1e-12
-  long_term_personality:
-    <<: *default_layer
-    input_size: 7
-  short_term_personality:
-    <<: *default_layer
-    input_size: 7
-  action:
-    <<: *default_layer
-    input_size: 7
-  actor_head:
-    <<: *default_layer
-    input_size: 64
-    output_size: 7
-  critic_head:
-    <<: *default_layer
-    input_size: 32
-    output_size: 1
-  critic_hidden:
-    <<: *default_layer
-    input_size: 128
-    output_size: 32
 
+ddpg: &DEFAULT
+  state_dim: 7
+  action_dim: 7
+  max_action: 1.0
+  discount: 0.99
+  tau: 0.005
+  expl_noise: 0.1
+  actor_lr: !!float 3e-4
+  critic_lr: !!float 3e-4
+  actor:
+    fc1: 256
+    fc2: 128
+    fc3: 32
+    layer_norm: !!float 1e-12
+  critic:
+    fc1: 128
+    fc2: 64
+    fc3: 1
+    layer_norm: !!float 1e-12
+td3:
+  <<: *DEFAULT
+  policy_noise: 0.2  # multiply max_action
+  noise_clip: 0.5  # multiply max_action
+  policy_freq: 2
