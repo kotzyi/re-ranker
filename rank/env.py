@@ -20,13 +20,13 @@ class ENV:
         self.action = None
         self.reward = None
 
-    def reset(self):
+    def reset(self) -> np.array:
         self.done = 0
         self.satisfy = 1
 
         return np.reshape(np.array(self.state), (1, self.num_category))  # np.array(self.state)
 
-    def step(self, action, debug=False):
+    def step(self, action: np.array, debug:bool=False) -> (float, np.array, int):
         self.action = action[0]
         self.priv_state = self.state
         self.state = [1 - abs(a - p) for a, p in zip(self.action, self.user_personality)]
@@ -48,8 +48,8 @@ class ENV:
         logger.debug(f'DONE             : {self.done}')
         logger.debug(f'--------------------------------------------------------------------------')
 
-    def get_reward(self, state):
+    def get_reward(self, state: list) -> float:
         return (sum(state) - self.num_category) / 10
 
-    def sample(self):
+    def sample(self) -> np.array:
         return np.array(np.random.dirichlet(np.ones(self.num_category), size=1))

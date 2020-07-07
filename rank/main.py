@@ -21,7 +21,7 @@ BASE_MODEL_CLASSES = {
 logger = logging.getLogger(__name__)
 
 
-def eval_policy(policy, eval_env, args):
+def eval_policy(policy, eval_env: ENV, args) -> float:
     avg_reward = 0.
     state = eval_env.reset()
     for _ in range(args.eval_episodes):

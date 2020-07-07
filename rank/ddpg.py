@@ -59,13 +59,13 @@ class DDPG(object):
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
-                                                              opt_level=conf.fp16_opt_level)
+                                                                opt_level=conf.fp16_opt_level)
 
-    def select_action(self, state):
+    def select_action(self, state: np.array) -> np.array:
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         return np.array([self.actor(state).cpu().data.numpy().flatten()])
 
-    def train(self, args, replay_buffer):
+    def train(self, args, replay_buffer) -> (float, float):
         # Sample replay buffer
         state, action, reward, next_state, not_done = replay_buffer.sample(args.batch_size, self.device)
 
@@ -119,16 +119,16 @@ class DDPG(object):
 
     def save(self, filename):
         torch.save(self.critic.state_dict(), filename + "_critic")
-        torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer")
+        torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer.pt")
 
         torch.save(self.actor.state_dict(), filename + "_actor")
-        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer")
+        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer.pt")
 
     def load(self, filename):
         self.critic.load_state_dict(torch.load(filename + "_critic"))
-        self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer"))
+        self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer.pt"))
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor.load_state_dict(torch.load(filename + "_actor"))
-        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer"))
+        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer.pt"))
         self.actor_target = copy.deepcopy(self.actor)
