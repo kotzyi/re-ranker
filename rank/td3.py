@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from apex import amp
+from rank.model import Policy
 
 
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
@@ -64,7 +65,7 @@ class TD3Critic(nn.Module):
         return q1
 
 
-class TD3(object):
+class TD3(Policy):
     def __init__(self, conf):
         self.max_action = conf.max_action
         self.discount = conf.discount
@@ -88,10 +89,6 @@ class TD3(object):
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
                                                                 opt_level=conf.fp16_opt_level)
-
-    def select_action(self, state: np.array) -> np.array:
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        return np.array([self.actor(state).cpu().data.numpy().flatten()])
 
     def train(self, args, replay_buffer) -> (float, float):
         self.total_it += 1
@@ -160,19 +157,3 @@ class TD3(object):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
             return critic_loss.clone().detach().cpu().mean().item(), actor_loss.clone().detach().cpu().mean().item()
         return None, None
-
-    def save(self, filename):
-        torch.save(self.critic.state_dict(), filename + "_critic")
-        torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer.pt")
-
-        torch.save(self.actor.state_dict(), filename + "_actor")
-        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer.pt")
-
-    def load(self, filename):
-        self.critic.load_state_dict(torch.load(filename + "_critic"))
-        self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer.pt"))
-        self.critic_target = copy.deepcopy(self.critic)
-
-        self.actor.load_state_dict(torch.load(filename + "_actor"))
-        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer.pt"))
-        self.actor_target = copy.deepcopy(self.actor)
