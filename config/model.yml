@@ -2,8 +2,8 @@ version: 0.1
 
 
 ddpg: &DEFAULT
-  state_dim: 30
-  action_dim: 30
+  state_dim: 21
+  action_dim: 7
   max_action: 1.0
   discount: 0.99
   tau: 0.005
@@ -22,6 +22,6 @@ ddpg: &DEFAULT
     layer_norm: !!float 1e-12
 td3:
   <<: *DEFAULT
-  policy_noise: 0.2  # multiply max_action
-  noise_clip: 0.5  # multiply max_action
+  policy_noise: 0.2
+  noise_clip: 0.5
   policy_freq: 2

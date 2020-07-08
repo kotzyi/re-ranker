@@ -1,10 +1,8 @@
 import copy
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from apex import amp
-from rank.model import Policy
+from models.model import Policy
 
 # Implementation of Deep Deterministic Policy Gradients (DDPG)
 # Paper: https://arxiv.org/abs/1509.02971
@@ -57,6 +55,7 @@ class DDPG(Policy):
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), weight_decay=1e-2, lr=conf.critic_lr)
 
         if conf.fp16:
+            from apex import amp
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
@@ -68,7 +67,7 @@ class DDPG(Policy):
 
         # Compute the target Q value
         target_Q = self.critic_target(next_state, self.actor_target(next_state))
-        target_Q = reward + (not_done * self.discount * target_Q).detach()
+        target_Q = reward + (self.discount * target_Q).detach()
 
         # Get current Q estimate
         current_Q = self.critic(state, action)

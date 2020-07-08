@@ -3,10 +3,12 @@ import logging
 import argparse
 import torch
 import os
-from rank.td3 import TD3
-from rank.ddpg import DDPG
+from models.td3 import TD3
+from models.ddpg import DDPG
 from rank.config import DDPGConfig, TD3Config
-from rank.env import ENV
+from envs.card_type_v1 import CardTypeV1
+from envs.card_type_v2 import CardTypeV2
+from envs.env import ENV
 from rank.replay_buffer import ReplayBuffer
 try:
     from torch.utils.tensorboard import SummaryWriter, FileWriter
@@ -14,9 +16,13 @@ except ImportError:
     from tensorboardX import SummaryWriter, FileWriter
 
 
-BASE_MODEL_CLASSES = {
+MODEL_CLASSES = {
     "DDPG": (DDPGConfig, DDPG),
     "TD3": (TD3Config, TD3),
+}
+ENVS = {
+    "CARDTYPE-V1": CardTypeV1,
+    "CARDTYPE-V2": CardTypeV2,
 }
 logger = logging.getLogger(__name__)
 
@@ -25,8 +31,8 @@ def eval_policy(policy, eval_env: ENV, args) -> float:
     avg_reward = 0.
     state = eval_env.reset()
     for _ in range(args.eval_episodes):
-        action = policy.select_action(np.array(state))
-        reward, next_state, done = eval_env.step(action, debug=args.eval_debug)
+        action = policy.select_action(state)
+        reward, state, done = eval_env.step(action, debug=args.eval_debug)
         avg_reward += reward
 
     avg_reward /= args.eval_episodes
@@ -37,7 +43,7 @@ def eval_policy(policy, eval_env: ENV, args) -> float:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", default="DDPG", help="Policy name (TD3, DDPG)")
-    parser.add_argument("--env", default="CardType-v1", help="OpenAI gym environment name")
+    parser.add_argument("--env", default="CARDTYPE-V2", help="OpenAI gym environment name")
     parser.add_argument("--start_timesteps", default=25e3, type=int, help="Time steps initial random policy is used")
     parser.add_argument("--eval_freq", default=1000, type=int, help="How often (time steps) we evaluate")
     parser.add_argument("--max_timesteps", default=1e5, type=int, help="Max time steps to run environment")
@@ -64,10 +70,11 @@ def main():
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%Y/%m/%d %H:%M:%S",
-        level=logging.INFO,
+        level=logging.DEBUG,
     )
     args = parser.parse_args()
-    model_config, policy = BASE_MODEL_CLASSES[args.policy]
+    model_config, policy = MODEL_CLASSES[args.policy]
+    env = ENVS[args.env](state_dim=model_config.state_dim)
 
     # Setup CUDA, GPU & distributed training
     if args.local_rank == -1 or args.no_cuda:
@@ -88,8 +95,6 @@ def main():
 
     if args.save_model and not os.path.exists("./models"):
         os.makedirs(args.model_path)
-
-    env = ENV(num_recommend=10, num_category=model_config.state_dim)
 
     tb_writer = SummaryWriter(args.log_path)
     policy = policy(model_config)
@@ -116,13 +121,15 @@ def main():
         if t < args.start_timesteps:
             action = env.sample()
         else:
-            action = np.array((
-                    policy.select_action(np.array(state))
-                    + np.random.normal(0, model_config.max_action * model_config.expl_noise,
-                                       size=model_config.action_dim)
-            ).clip(-model_config.max_action, model_config.max_action))
-
-        reward, next_state, done = env.step(action, debug=args.eval_debug)
+            action = (policy.select_action(state)
+                      + np.random.normal(0, model_config.max_action * model_config.expl_noise,
+                                         size=model_config.action_dim)
+                      ).clip(0, model_config.max_action)
+        try:
+            reward, next_state, done = env.step(action, debug=args.eval_debug)
+        except Exception:
+            print(action, state)
+            raise ValueError
         replay_buffer.push(state, action, reward, next_state, done)
         state = next_state
         episode_reward += reward

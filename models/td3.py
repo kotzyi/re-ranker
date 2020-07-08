@@ -1,10 +1,8 @@
 import copy
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from apex import amp
-from rank.model import Policy
+from models.model import Policy
 
 
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
@@ -85,12 +83,13 @@ class TD3(Policy):
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=conf.critic_lr)
 
         if conf.fp16:
+            from apex import amp
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
                                                                 opt_level=conf.fp16_opt_level)
 
-    def train(self, args, replay_buffer) -> (float, float):
+    def train(self, args, replay_buffer):
         self.total_it += 1
 
         # Sample replay buffer
@@ -108,7 +107,7 @@ class TD3(Policy):
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + not_done * self.discount * target_Q
+            target_Q = reward + self.discount * target_Q
 
         # Get current Q estimates
         current_Q1, current_Q2 = self.critic(state, action)

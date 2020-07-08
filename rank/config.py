@@ -9,3 +9,8 @@ class DDPGConfig(metaclass=YAMLObject):
 class TD3Config(metaclass=YAMLObject):
     source = "../config/model.yml"
     namespace = 'td3'
+
+
+class CardTypeV2Config(metaclass=YAMLObject):
+    source = "../config/env.yml"
+    namespace = 'card_v2'
