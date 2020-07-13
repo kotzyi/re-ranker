@@ -14,3 +14,8 @@ class TD3Config(metaclass=YAMLObject):
 class CardTypeV2Config(metaclass=YAMLObject):
     source = "../config/env.yml"
     namespace = 'card_v2'
+
+
+class CardTypeV3Config(metaclass=YAMLObject):
+    source = "../config/env.yml"
+    namespace = 'card_v3'

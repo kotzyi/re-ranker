@@ -2,7 +2,8 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.model import Policy
+from models.policy import Policy
+
 
 # Implementation of Deep Deterministic Policy Gradients (DDPG)
 # Paper: https://arxiv.org/abs/1509.02971
@@ -55,7 +56,11 @@ class DDPG(Policy):
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), weight_decay=1e-2, lr=conf.critic_lr)
 
         if conf.fp16:
-            from apex import amp
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
@@ -78,6 +83,11 @@ class DDPG(Policy):
         # Optimize the critic
         self.critic.zero_grad()
         if args.fp16:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
             with amp.scale_loss(critic_loss, self.critic_optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:

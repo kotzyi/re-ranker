@@ -2,7 +2,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.model import Policy
+from models.policy import Policy
 
 
 # Implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
@@ -24,7 +24,7 @@ class TD3Actor(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        mu = (torch.tanh(self.LayerNorm(self.fc_mu(x))) + self.max_action) / 2
+        mu = (torch.tanh(self.fc_mu(x)) + self.max_action) / 2
         return mu
 
 
@@ -83,7 +83,11 @@ class TD3(Policy):
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=conf.critic_lr)
 
         if conf.fp16:
-            from apex import amp
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
             self.actor, self.actor_optimizer = amp.initialize(self.actor, self.actor_optimizer,
                                                               opt_level=conf.fp16_opt_level)
             self.critic, self.critic_optimizer = amp.initialize(self.critic, self.critic_optimizer,
@@ -118,6 +122,11 @@ class TD3(Policy):
         # Optimize the critic
         self.critic.zero_grad()
         if args.fp16:
+            try:
+                from apex import amp
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
+
             with amp.scale_loss(critic_loss, self.critic_optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:

@@ -4,6 +4,9 @@ import torch
 
 
 class Policy(object):
+    """
+    This is a guide for making policy class
+    """
     def __init__(self, conf: dict):
         self.actor = None
         self.actor_target = None
@@ -11,22 +14,35 @@ class Policy(object):
         self.critic = None
         self.critic_target = None
         self.critic_optimizer = None
+        self.device = None
 
     def train(self, args, replay_buffer) -> (float, float):
-        # Sample replay buffer
-        # Compute the target Q value
-        # Get current Q estimate
-        # Compute critic loss
-        # Optimize the critic
-        # Compute actor loss
-        # Optimize the actor
-        # Update the frozen target models
+        """
+        Please follow the below steps
+        1. Sample replay buffer
+        2. Compute the target Q value
+        3. Get current Q estimate
+        4. Compute critic loss
+        5. Optimize the critic
+        6. Compute actor loss
+        7. Optimize the actor
+        8. Update the frozen target models
+
+        :param args: arguments from console command
+        :param replay_buffer: replay buffer that keeps (state, next_state, reward, done) transitions
+        :return: actor and critic loss
+        """
         pass
 
-    def select_action(self, state: np.array) -> np.array:
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        x = self.actor(state)
-        return np.array([x.cpu().data.numpy().flatten()])
+    def select_action(self, states: np.array) -> np.array:
+        num_users = states.shape[0]
+        actions = []
+        states = torch.FloatTensor(states).to(self.device)
+        for state in states:
+            actions.append(self.actor(state))
+        actions = torch.cat(actions)
+        actions = actions.cpu().data.numpy().reshape(num_users, -1)
+        return actions
 
     def save(self, filename) -> None:
         torch.save(self.critic.state_dict(), filename + "_critic")

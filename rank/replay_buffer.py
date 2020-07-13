@@ -31,11 +31,13 @@ class ReplayBuffer(object):
 
         for transition in mini_batch:
             state, action, reward, next_state, done = transition
-            states.append(state.tolist()[0])
-            actions.append(action.tolist()[0])
-            rewards.append([reward])
-            next_states.append(next_state.tolist()[0])
-            dones.append([done])
+            # print(state.tolist(), action.shape, reward.shape, next_state.shape, done.shape)
+
+            states.append(state.tolist())
+            actions.append(action.tolist())
+            rewards.append([reward.tolist()])
+            next_states.append(next_state.tolist())
+            dones.append(done.tolist())
         return torch.tensor(states, dtype=torch.float, device=device), \
                torch.tensor(actions, dtype=torch.float, device=device), \
                torch.tensor(rewards, dtype=torch.float, device=device), \

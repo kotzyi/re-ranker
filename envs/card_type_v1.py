@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 class CardTypeV1(ENV):
     def __init__(self, state_dim: int):
-
         self.num_category = state_dim
         self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
         self.done = 0
@@ -21,17 +20,18 @@ class CardTypeV1(ENV):
         self.reward = None
 
     def reset(self) -> np.array:
-        self.done = 0
+        self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
+        self.done = np.array([[0]])
         self.satisfy = 1
 
         return np.reshape(np.array(self.state), (1, self.num_category))  # np.array(self.state)
 
-    def step(self, action: np.array, debug: bool = False) -> (float, np.array, int):
+    def step(self, action: np.array, debug: bool = False) -> (np.array, np.array, np.array):
         self.action = action[0]
         self.priv_state = self.state
         self.state = [1 - abs(a - p) for a, p in zip(self.action, self.user_personality)]
         self.satisfy = sum(self.state)
-        self.reward = self.get_reward(self.state)
+        self.reward = np.array([self.get_reward(self.state)])
         if debug:
             self.print_status()
 
