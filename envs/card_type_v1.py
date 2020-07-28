@@ -12,14 +12,18 @@ class CardTypeV1(ENV):
         self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
         self.done = 0
         self.satisfy = 1
-        self.views = 0
-        self.disappoint_factor = 0.9
+        self.disappoint_factor = 0.9  # GAMMA
         self.state = np.random.dirichlet(np.ones(self.num_category), size=1).tolist()
         self.priv_state = None
         self.action = None
         self.reward = None
 
     def reset(self) -> np.array:
+        """
+        reset the environment
+
+        :return: initial statement
+        """
         self.user_personality = np.random.dirichlet(np.ones(self.num_category), size=1)[0]
         self.done = np.array([[0]])
         self.satisfy = 1
@@ -27,6 +31,13 @@ class CardTypeV1(ENV):
         return np.reshape(np.array(self.state), (1, self.num_category))  # np.array(self.state)
 
     def step(self, action: np.array, debug: bool = False) -> (np.array, np.array, np.array):
+        """
+        when a specific action, it returns a next state
+
+        :param action: action
+        :param debug: debugging mode flag
+        :return: reward, next state, done
+        """
         self.action = action[0]
         self.priv_state = self.state
         self.state = [1 - abs(a - p) for a, p in zip(self.action, self.user_personality)]
@@ -38,6 +49,11 @@ class CardTypeV1(ENV):
         return self.reward, np.reshape(self.state, (1, self.num_category)), self.done
 
     def print_status(self):
+        """
+        printing status of environment
+
+        :return:
+        """
         logger.debug(f'--------------------------------------------------------------------------')
         logger.debug(f'USER PERSONALITY : {self.user_personality}')
         logger.debug(f'USER SATISFY     : {self.satisfy}')
@@ -49,7 +65,18 @@ class CardTypeV1(ENV):
         logger.debug(f'--------------------------------------------------------------------------')
 
     def get_reward(self, state: list) -> float:
+        """
+        return reward
+
+        :param state: state
+        :return: reward value
+        """
         return (sum(state) - self.num_category) / 10
 
     def sample(self) -> np.array:
+        """
+        random action
+
+        :return: action
+        """
         return np.array(np.random.dirichlet(np.ones(self.num_category), size=1))

@@ -43,20 +43,19 @@ def eval_policy(policy, env: ENV, args) -> float:
     return avg_reward
 
 
-def eval_policy_2(policy, env: ENV, replay_buffer, args) -> float:
-    avg_reward = 0.
-
-    logger.info(f"personality: {env.user_personalities}")
-    for _ in range(args.eval_episodes):
-        state, _, _, _, _ = replay_buffer.sample(1, args.device)
-        action = policy.select_action(state.cpu().data.numpy())
-        reward, state, done = env.step(action, debug=False)
-        avg_reward += np.mean(reward)
-
-    avg_reward /= args.eval_episodes
-    logger.info(f"2 - Evaluation over {args.eval_episodes} episodes: {avg_reward:.3f} last_states: {state[-1][-2:]} last action: {action}")
-    return avg_reward
-
+# def eval_policy_2(policy, env: ENV, replay_buffer, args) -> float:
+#     avg_reward = 0.
+#
+#     logger.info(f"personality: {env.user_personalities}")
+#     for _ in range(args.eval_episodes):
+#         state, _, _, _, _ = replay_buffer.sample(1, args.device)
+#         action = policy.select_action(state.cpu().data.numpy())
+#         reward, state, done = env.step(action, debug=False)
+#         avg_reward += np.mean(reward)
+#
+#     avg_reward /= args.eval_episodes
+#     logger.info(f"2 - Evaluation over {args.eval_episodes} episodes: {avg_reward:.3f} last_states: {state[-1][-2:]} last action: {action}")
+#     return avg_reward
 
 
 def main():
@@ -92,7 +91,11 @@ def main():
         level=logging.DEBUG,
     )
     args = parser.parse_args()
+
+    # Load policy and model configuration
     model_config, policy = MODEL_CLASSES[args.policy]
+
+    # Load environment
     env = ENVS[args.env](state_dim=model_config.state_dim)
 
     # Setup CUDA, GPU & distributed training
@@ -117,12 +120,15 @@ def main():
         os.makedirs(args.model_path)
 
     tb_writer = SummaryWriter(f"{args.log_path}/{args.policy}-{args.env}")
+
+    # Load policy object
     policy = policy(model_config)
 
     if args.load_model != "":
         policy_file = save_file_name if args.load_model == "default" else args.load_model
         policy.load(f"{args.model_path}/{policy_file}")
 
+    # Load replay buffer
     replay_buffer = ReplayBuffer(args.buffer_size)
 
     # Evaluate untrained policy
@@ -138,11 +144,10 @@ def main():
         episode_timesteps += 1
 
         # Select action randomly or according to policy
-        if t < args.start_timesteps:
-
+        if t < args.start_timesteps:  # before start-timesteps, it uses random action.
             actions = env.sample()
             rewards, next_states, dones = env.step(actions, debug=False)
-        else:
+        else:  # after start-timesteps, it uses action from policy.
             actions = (policy.select_action(states)
                       + np.random.normal(0, model_config.max_action * model_config.expl_noise,
                                          size=model_config.action_dim)
@@ -174,7 +179,7 @@ def main():
 
         # Evaluate episode
         if (t + 1) % args.eval_freq == 0:
-            evaluations.append(eval_policy_2(policy, env, replay_buffer, args))
+            evaluations.append(eval_policy(policy, env, replay_buffer, args))
             if args.save_model:
                 policy.save(f"{args.model_path}/{save_file_name}")
 

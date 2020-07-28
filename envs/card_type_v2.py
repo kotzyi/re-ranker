@@ -32,8 +32,13 @@ class CardTypeV2(ENV):
         self.reward = None
 
     def reset(self) -> np.array:
+        """
+        reset the environment
+
+        :return: initial statement
+        """
         # TO-DO: MUST consider user personality should be reset or not !!!!
-        self.user_personalities = np.random.dirichlet(np.random.random(self.num_card_types), size=self.num_users)[0]
+        # self.user_personalities = np.random.dirichlet(np.random.random(self.num_card_types), size=self.num_users)[0]
         self.long_term_observation = np.zeros(self.num_card_types)
         self.short_term_observation = self.long_term_observation
         self.feedback = np.zeros(self.num_card_types)
@@ -43,6 +48,13 @@ class CardTypeV2(ENV):
         return np.reshape(self.state, (1, self.state_dim))
 
     def step(self, action: np.array, debug: bool = False) -> (np.array, np.array, np.array):
+        """
+        when a specific action, it returns a next state
+
+        :param action: action
+        :param debug: debugging mode flag
+        :return: reward, next state, done
+        """
         self.action = self.softmax(action[0])
         self.previous_state = self.state
         self.feedback = 1 - abs(action[0] - self.user_personalities)
@@ -61,6 +73,11 @@ class CardTypeV2(ENV):
         return self.reward, np.reshape(self.state, (1, self.state_dim)), self.done
 
     def print_status(self, real_action, recommended_cards):
+        """
+        printing status of environment
+
+        :return:
+        """
         logger.debug(f'--------------------------------------------------------------------------')
         logger.debug(f'USER PERSONALITY : {self.user_personalities}')
         logger.debug(f'USER SATISFY     : {self.feedback}')
@@ -75,15 +92,32 @@ class CardTypeV2(ENV):
         logger.debug(f'--------------------------------------------------------------------------')
 
     def get_reward(self) -> float:
+        """
+        return reward
+        :param state: state
+        :return: reward value
+        """
         #  return sum(self.feedback) / self.num_card_types - 1
         #  return (sum(self.short_term_observation) / self.num_cards) - 1
         return sum(self.feedback) / self.num_card_types + (sum(self.short_term_observation) / self.num_cards) - 2
 
     def sample(self) -> np.array:
+        """
+        return random action
+        :return: action
+        """
         action = np.array(np.random.dirichlet(np.random.random(self.num_card_types), size=1))
         return action
 
     def recommend_card(self, action):
+        """
+        return recommends cards
+        (recommended cards means numpy list of the number of card types
+        ex. [3,0,2] it means it return three of card type 0 are recommended, two of card type 2 are recommended.)
+
+        :param action: action
+        :return: numpy array of the number of card types
+        """
         recommended_cards = np.array([])
         seed = np.random.choice(a=list(range(self.num_card_types)), size=self.num_cards, p=action)
 
